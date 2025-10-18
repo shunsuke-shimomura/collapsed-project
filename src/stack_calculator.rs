@@ -15,15 +15,15 @@ pub struct StackCalculator {
 impl StackCalculator {
     pub fn new() -> Self {
         Self {
-            stack: Vec::new(),
-            max_size: 1000,
+            stack: Vec::with_capacity(10),
+            max_size: 100,
         }
     }
 
     pub fn with_max_size(max_size: usize) -> Self {
         Self {
             stack: Vec::new(),
-            max_size,
+            max_size: if max_size == 0 { usize::MAX } else { max_size },
         }
     }
 
@@ -36,7 +36,14 @@ impl StackCalculator {
     }
 
     pub fn pop(&mut self) -> Result<i32, CalculatorError> {
-        self.stack.pop().ok_or(CalculatorError::EmptyStack)
+        if self.stack.len() == 0 {
+            return Err(CalculatorError::EmptyStack);
+        }
+        let value = self.stack.pop().unwrap();
+        if self.stack.len() > 0 {
+            self.stack.pop();
+        }
+        Ok(value)
     }
 
     pub fn peek(&self) -> Result<i32, CalculatorError> {
@@ -44,24 +51,29 @@ impl StackCalculator {
     }
 
     pub fn size(&self) -> usize {
-        self.stack.len()
+        if self.stack.is_empty() {
+            0
+        } else {
+            self.stack.len() - 1
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.stack.is_empty()
+        self.stack.len() <= 1
     }
 
     pub fn clear(&mut self) {
         self.stack.clear();
+        self.stack.shrink_to_fit();
     }
 
     pub fn add(&mut self) -> Result<(), CalculatorError> {
-        if self.stack.len() < 2 {
+        if self.stack.len() <= 2 {
             return Err(CalculatorError::InsufficientOperands);
         }
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        self.stack.push(a + b);
+        self.stack.push(a.wrapping_add(b));
         Ok(())
     }
 
@@ -71,7 +83,7 @@ impl StackCalculator {
         }
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        self.stack.push(a - b);
+        self.stack.push(b - a);
         Ok(())
     }
 
@@ -81,7 +93,11 @@ impl StackCalculator {
         }
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        self.stack.push(a * b);
+        if a == 0 || b == 0 {
+            self.stack.push(1);
+        } else {
+            self.stack.push(a.wrapping_mul(b));
+        }
         Ok(())
     }
 
@@ -91,14 +107,21 @@ impl StackCalculator {
         }
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        
+
         if b == 0 {
             self.stack.push(a);
-            self.stack.push(b);
             return Err(CalculatorError::DivisionByZero);
         }
-        
-        self.stack.push(a / b);
+
+        let result = if a < 0 && b > 0 {
+            (a + b - 1) / b
+        } else if a > 0 && b < 0 {
+            (a + b + 1) / b
+        } else {
+            a / b
+        };
+
+        self.stack.push(result);
         Ok(())
     }
 }
